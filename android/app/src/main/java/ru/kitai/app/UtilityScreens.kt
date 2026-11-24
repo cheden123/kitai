@@ -1,6 +1,7 @@
 package ru.kitai.app
 
 import android.content.ContentResolver
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,7 +62,12 @@ import kotlin.math.min
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(settings: Settings, onSave: (Settings) -> Unit) {
+internal fun SettingsScreen(
+    settings: Settings,
+    updater: KitaiUpdateViewModel,
+    launchInstaller: (Intent) -> Unit,
+    onSave: (Settings) -> Unit,
+) {
     var key by remember { mutableStateOf("") }
     var clearKey by rememberSaveable { mutableStateOf(false) }
     var theme by rememberSaveable { mutableStateOf(settings.theme) }
@@ -111,6 +117,50 @@ fun SettingsScreen(settings: Settings, onSave: (Settings) -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Сохранить настройки") }
         }
+        item { KitaiUpdateSettings(updater, launchInstaller) }
+    }
+}
+
+@Composable
+private fun KitaiUpdateSettings(updater: KitaiUpdateViewModel, launchInstaller: (Intent) -> Unit) {
+    val state by updater.state.collectAsStateWithLifecycle()
+    val status = state
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Обновления Kitai", style = MaterialTheme.typography.titleLarge)
+        Text("Установлена версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+        when (status) {
+            KitaiUpdateState.Idle -> Unit
+            KitaiUpdateState.Checking -> {
+                Text("Проверяем выпуски на GitHub…")
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            KitaiUpdateState.UpToDate -> Text("Обновлений нет.")
+            is KitaiUpdateState.Available -> {
+                val label = if (status.release.prerelease) "Предварительный выпуск" else "Доступна версия"
+                Text("$label ${status.release.version}")
+                status.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                Button(onClick = updater::download) { Text("Скачать обновление") }
+            }
+            KitaiUpdateState.Downloading -> {
+                Text("Скачиваем и проверяем APK…")
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            is KitaiUpdateState.Ready -> {
+                Text("Версия ${status.release.version} готова к установке.")
+                status.message?.let { Text(it) }
+                Button(onClick = { updater.install(launchInstaller) }) { Text("Установить обновление") }
+            }
+            is KitaiUpdateState.Installing -> Text("Подтвердите обновление в системном установщике.")
+            is KitaiUpdateState.Message -> Text(
+                status.text,
+                color = if (status.error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        OutlinedButton(
+            onClick = updater::check,
+            enabled = status != KitaiUpdateState.Checking && status != KitaiUpdateState.Downloading &&
+                status !is KitaiUpdateState.Installing,
+        ) { Text("Проверить обновления") }
     }
 }
 

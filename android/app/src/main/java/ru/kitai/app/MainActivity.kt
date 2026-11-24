@@ -1,9 +1,11 @@
 package ru.kitai.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +56,10 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val model: KitaiViewModel by viewModels()
+    private val updater: KitaiUpdateViewModel by viewModels()
+    private val updateInstaller = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        updater.installFinished(it.resultCode)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,7 +79,9 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !dark
                 }
             }
-            MaterialTheme(colorScheme = scheme) { KitaiApp(model, settings) }
+            MaterialTheme(colorScheme = scheme) {
+                KitaiApp(model, settings, updater) { updateInstaller.launch(it) }
+            }
         }
     }
 }
@@ -119,7 +127,12 @@ private val webDestinationSaver = listSaver<WebDestination?, String>(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun KitaiApp(model: KitaiViewModel, settings: Settings) {
+private fun KitaiApp(
+    model: KitaiViewModel,
+    settings: Settings,
+    updater: KitaiUpdateViewModel,
+    launchInstaller: (Intent) -> Unit,
+) {
     val snackbar = remember { SnackbarHostState() }
     val tabState = rememberSaveableStateHolder()
     val notice by model.notice.collectAsStateWithLifecycle()
@@ -221,7 +234,7 @@ private fun KitaiApp(model: KitaiViewModel, settings: Settings) {
                         productAddress = link.url
                     },
                 )
-                inSettings -> SettingsScreen(settings) {
+                inSettings -> SettingsScreen(settings, updater, launchInstaller) {
                     model.saveSettings(it) { inSettings = false }
                 }
                 activeDetail != null -> ProductDetailScreen(
