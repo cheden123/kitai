@@ -1,0 +1,40 @@
+services:
+  api:
+    environment:
+      KITAI_POSTGRES_DSN: host=postgres dbname=kitai user=kitai
+      KITAI_POSTGRES_PASSWORD: ${KITAI_DB_PASSWORD:?Set KITAI_DB_PASSWORD in deploy/.env}
+      KITAI_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kitai
+      POSTGRES_USER: kitai
+      POSTGRES_PASSWORD: ${KITAI_DB_PASSWORD:?Set KITAI_DB_PASSWORD in deploy/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/10-kitai.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kitai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "32mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:

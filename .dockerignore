@@ -1,0 +1,11 @@
+.git
+.codex
+android
+docs
+**/.venv
+**/.uv-cache
+backend/.tmp
+**/__pycache__
+**/.pytest_cache
+**/.env
+deploy/kitai.env

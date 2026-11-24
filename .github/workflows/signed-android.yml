@@ -1,0 +1,47 @@
+name: Сборка подписанного Kitai
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-android:
+    runs-on: ubuntu-latest
+    environment: release
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Собрать и проверить подпись
+        env:
+          KITAI_KEYSTORE_BASE64: ${{ secrets.KITAI_KEYSTORE_BASE64 }}
+          KITAI_KEYSTORE_PASSWORD: ${{ secrets.KITAI_KEYSTORE_PASSWORD }}
+          KITAI_KEY_ALIAS: ${{ secrets.KITAI_KEY_ALIAS }}
+          KITAI_KEY_PASSWORD: ${{ secrets.KITAI_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${KITAI_KEYSTORE_BASE64:?}" "${KITAI_KEYSTORE_PASSWORD:?}" "${KITAI_KEY_ALIAS:?}" "${KITAI_KEY_PASSWORD:?}"
+          umask 077
+          KITAI_KEYSTORE_PATH="$(mktemp)"
+          export KITAI_KEYSTORE_PATH
+          trap 'rm -f -- "$KITAI_KEYSTORE_PATH"' EXIT
+          printf '%s' "$KITAI_KEYSTORE_BASE64" | base64 --decode > "$KITAI_KEYSTORE_PATH"
+          unset KITAI_KEYSTORE_BASE64
+          bash gradlew testReleaseUnitTest assembleRelease bundleRelease
+          "${ANDROID_HOME}/build-tools/34.0.0/apksigner" verify app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kitai-signed-android
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

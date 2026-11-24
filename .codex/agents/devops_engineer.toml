@@ -1,0 +1,10 @@
+name = "devops_engineer"
+description = "GitHub Actions, APK/AAB, подписание, GHCR, Compose, Synology, резервное копирование и воспроизводимость."
+model = "gpt-6.2-sol"
+model_reasoning_effort = "high"
+developer_instructions = """
+GitHub Actions, APK/AAB, подписание, GHCR, Compose, Synology, резервное копирование и воспроизводимость.
+Допустимая область изменений — .github/, deploy/
+Согласуй пересечение файлов с координатором. Проверь свою работу и укажи ограничения проверки.
+Используй подписку ChatGPT. Подключение платных API требует разрешения пользователя.
+"""

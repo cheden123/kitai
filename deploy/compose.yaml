@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${KITAI_BIND_ADDRESS:-127.0.0.1}:${KITAI_PORT:-8000}:8000"
+    env_file:
+      - kitai.env
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=3).close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

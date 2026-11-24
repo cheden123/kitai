@@ -1,0 +1,16 @@
+.venv/
+.uv-cache/
+backend/.tmp/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.gradle/
+build/
+local.properties
+*.jks
+*.keystore
+deploy/kitai.env
+.env
+/outputs/
+/emulator.stderr.local
+/emulator.stdout.local

@@ -1,0 +1,26 @@
+[project]
+name = "kitai-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "httpx>=0.28,<1",
+    "pillow>=12,<13",
+    "psycopg[binary]>=3.2,<4",
+    "python-multipart>=0.0.20,<1",
+    "redis>=6,<8",
+    "uvicorn>=0.32,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kitai"]
