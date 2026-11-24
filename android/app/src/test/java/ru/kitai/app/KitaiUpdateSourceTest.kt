@@ -13,7 +13,7 @@ import org.junit.Test
 
 class KitaiUpdateSourceTest {
     private val installed = KitaiReleaseVersion(0, 2, 1)
-    private val sha256 = "b5d54c39e66671c9731b9f471e585d8262cd4f54963f0c93082d8dcf334d4c78"
+    private val sha256 = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
     private val base = "https://github.com/cheden123/kitai/releases/download"
 
     @Test
