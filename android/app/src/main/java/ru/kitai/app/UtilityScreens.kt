@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,41 +62,32 @@ import kotlin.math.min
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(settings: Settings, onSave: (Settings) -> Unit) {
-    var address by rememberSaveable { mutableStateOf(settings.address) }
-    var token by remember { mutableStateOf("") }
-    var clearToken by rememberSaveable { mutableStateOf(false) }
+    var key by remember { mutableStateOf("") }
+    var clearKey by rememberSaveable { mutableStateOf(false) }
     var theme by rememberSaveable { mutableStateOf(settings.theme) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     LazyColumn(contentPadding = screenPadding, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Text("Подключение", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-        }
-        item {
+            Text("Перевод через OpenRouter", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
-                value = address, onValueChange = { address = it.take(800); error = null },
-                label = { Text("Адрес сервера") }, placeholder = { Text("https://kitai.example") },
-                singleLine = true, isError = error != null,
-                supportingText = {
-                    Text(error ?: "HTTPS-адрес сервера Kitai.")
+                value = key,
+                onValueChange = { key = it.take(1_024); clearKey = false; error = null },
+                label = { Text("Ключ OpenRouter") },
+                placeholder = {
+                    Text(if (settings.openRouterKey.isNotEmpty() && !clearKey) "Ключ сохранён" else "sk-or-…")
                 },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            OutlinedTextField(
-                value = token,
-                onValueChange = { token = it.take(512); clearToken = false; error = null },
-                label = { Text("Токен доступа") },
-                placeholder = { Text(if (settings.token.isNotEmpty() && !clearToken) "Токен сохранён" else "Необязательно") },
                 singleLine = true,
+                isError = error != null,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                supportingText = {
+                    Text(error ?: "Kitai использует бесплатные модели. Ключ хранится на устройстве в зашифрованном виде.")
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (settings.token.isNotEmpty()) {
-                TextButton(onClick = { clearToken = !clearToken; token = "" }) {
-                    Text(if (clearToken) "Оставить сохранённый токен" else "Удалить сохранённый токен")
+            if (settings.openRouterKey.isNotEmpty()) {
+                TextButton(onClick = { clearKey = !clearKey; key = ""; error = null }) {
+                    Text(if (clearKey) "Оставить сохранённый ключ" else "Удалить сохранённый ключ")
                 }
             }
         }
@@ -110,17 +102,11 @@ fun SettingsScreen(settings: Settings, onSave: (Settings) -> Unit) {
         item {
             Button(
                 onClick = {
-                    val normalized = if (address.isBlank()) "" else apiAddress(address, BuildConfig.DEBUG)
-                    val updatedToken = token.trim().ifEmpty {
-                        settings.token.takeIf { !clearToken && normalized == settings.address }.orEmpty()
-                    }
-                    error = when {
-                        normalized == null -> "Укажите корректный HTTPS-адрес."
-                        updatedToken.isNotEmpty() && secureApiToken(normalized, updatedToken) == null ->
-                            "Для токена нужен HTTPS-адрес и печатные символы ASCII без пробелов."
-                        else -> null
-                    }
-                    if (error == null && normalized != null) onSave(Settings(normalized, theme, updatedToken))
+                    val updatedKey = key.trim().ifEmpty { settings.openRouterKey.takeUnless { clearKey }.orEmpty() }
+                    error = if (updatedKey.isNotEmpty() && !validOpenRouterKey(updatedKey)) {
+                        "Вставьте ключ API OpenRouter целиком."
+                    } else null
+                    if (error == null) onSave(Settings(theme, updatedKey))
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Сохранить настройки") }
@@ -181,9 +167,14 @@ fun TranslationScreen(model: KitaiViewModel, settings: Settings, openSettings: (
                 }
             }
         }
-        if (settings.address.isBlank()) item {
-            InfoCard("Подключите сервер", "Текст и изображения обрабатывает сервер Kitai.") {
-                TextButton(onClick = openSettings) { Text("Настроить сервер") }
+        if (picture || settings.openRouterKey.isEmpty()) item {
+            val title = if (picture) "Распознавание на устройстве" else "Перевод через OpenRouter"
+            val message = if (picture) "Для перевода в OpenRouter отправляется только распознанный текст."
+            else "Добавьте ключ OpenRouter в настройках."
+            InfoCard(title, message) {
+                if (settings.openRouterKey.isEmpty()) {
+                    TextButton(onClick = openSettings) { Text("Добавить ключ") }
+                }
             }
         }
         if (picture) {
@@ -196,25 +187,27 @@ fun TranslationScreen(model: KitaiViewModel, settings: Settings, openSettings: (
             item {
                 Button(
                     onClick = { upload?.let { highlighted = -1; model.recognize(it, direction) } },
-                    enabled = upload != null && !reading && !state.loading && settings.address.isNotBlank(),
-                ) { Text("Распознать и перевести") }
+                    enabled = upload != null && !reading && !state.loading,
+                ) { Text(if (settings.openRouterKey.isEmpty()) "Распознать" else "Распознать и перевести") }
             }
             localError?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
             if (state.image?.blocks?.isEmpty() == true) item { InfoCard("Текст не найден", "Попробуйте более чёткое изображение.") }
             state.image?.blocks?.let { blocks ->
                 itemsIndexed(blocks) { index, block ->
-                    InfoCard(
-                        "Фрагмент ${index + 1}",
-                        block.text,
-                    ) {
-                        Text(block.translation ?: "Перевод недоступен", style = MaterialTheme.typography.bodyMedium)
+                    InfoCard("Фрагмент ${index + 1}", null) {
+                        SelectionContainer {
+                            Column {
+                                Text(block.text, style = MaterialTheme.typography.bodyMedium)
+                                block.translation?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                            }
+                        }
                         if (block.box != null) {
                             TextButton(onClick = {
                                 highlighted = if (highlighted == index) -1 else index
                                 if (highlighted >= 0) {
                                     scope.launch {
                                         val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "ocr-preview" }
-                                        listState.animateScrollToItem(visible?.index ?: if (settings.address.isBlank()) 5 else 4)
+                                        listState.animateScrollToItem(visible?.index ?: 5)
                                     }
                                 }
                             }) {
@@ -236,10 +229,12 @@ fun TranslationScreen(model: KitaiViewModel, settings: Settings, openSettings: (
             item {
                 Button(
                     onClick = { model.translate(text.trim(), direction) },
-                    enabled = text.isNotBlank() && !state.loading && settings.address.isNotBlank(),
+                    enabled = text.isNotBlank() && !state.loading && settings.openRouterKey.isNotEmpty(),
                 ) { Text("Перевести") }
             }
-            state.text?.let { item { InfoCard("Перевод", it) } }
+            state.text?.let { result ->
+                item { InfoCard("Перевод", null) { SelectionContainer { Text(result) } } }
+            }
         }
         if (state.loading || reading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
@@ -297,11 +292,8 @@ private fun OcrPreview(upload: UploadImage, result: OcrResult?, highlighted: Int
 private fun loadUpload(resolver: ContentResolver, uri: Uri): UploadImage {
     require(uri.scheme == "content") { "Выберите изображение из файлов устройства." }
     val mime = resolver.getType(uri)?.lowercase()
-    val extension = when (mime) {
-        "image/jpeg" -> "jpg"
-        "image/png" -> "png"
-        "image/webp" -> "webp"
-        else -> throw IllegalArgumentException("Выберите изображение JPEG, PNG или WebP.")
+    require(mime in setOf("image/jpeg", "image/png", "image/webp")) {
+        "Выберите изображение JPEG, PNG или WebP."
     }
     val maximum = 5 * 1024 * 1024
     val bytes = requireNotNull(resolver.openInputStream(uri)) { "Файл недоступен." }.use { input ->
@@ -316,5 +308,5 @@ private fun loadUpload(resolver: ContentResolver, uri: Uri): UploadImage {
         output.toByteArray()
     }
     require(bytes.isNotEmpty()) { "Файл изображения пуст." }
-    return UploadImage(bytes, mime, "image.$extension")
+    return UploadImage(bytes)
 }

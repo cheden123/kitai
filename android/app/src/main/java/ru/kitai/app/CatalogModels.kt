@@ -2,6 +2,7 @@ package ru.kitai.app
 
 import com.google.gson.annotations.SerializedName
 import java.net.URI
+import java.net.URLEncoder
 import java.text.NumberFormat
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -18,6 +19,16 @@ enum class Market(val id: String, val title: String, val homepage: String, priva
         return domains.any { domain -> host == domain || host.endsWith(".$domain") }
     }
 
+    fun searchUrl(query: String): String {
+        if (query.isBlank()) return homepage
+        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+        return when (this) {
+            TAOBAO -> "https://s.taobao.com/search?q=$encoded"
+            ALI1688 -> "https://s.1688.com/selloffer/offer_search.htm?keywords=$encoded"
+            ALIBABA -> "https://www.alibaba.com/trade/search?IndexArea=product_en&SearchText=$encoded"
+        }
+    }
+
     companion object {
         fun byId(id: String): Market? = entries.firstOrNull { it.id == id }
     }
@@ -31,22 +42,41 @@ fun secureUri(value: String): URI? {
     }
 }
 
-fun apiAddress(value: String, allowLocalHttp: Boolean): String? {
-    val trimmed = value.trim().trimEnd('/')
-    val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
-    val host = uri.host?.lowercase(Locale.ROOT) ?: return null
-    val encrypted = uri.scheme.equals("https", true)
-    val localHttp = allowLocalHttp && uri.scheme.equals("http", true) &&
-        host in setOf("localhost", "127.0.0.1", "10.0.2.2")
-    return trimmed.takeIf {
-        (encrypted || localHttp) && uri.rawUserInfo == null && uri.rawQuery == null &&
-            uri.rawFragment == null && (uri.port == -1 || uri.port in 1..65535)
-    }
+data class MarketplaceProductLink(val market: Market, val id: String, val url: String) {
+    fun product(title: String, price: String? = null, currency: String? = null, minimum: String? = null) = Product(
+        source = market.id, id = id, title = title, url = url,
+        observedAt = OffsetDateTime.now().toString(), titleRu = null, imageUrl = null,
+        priceMin = price, priceMax = null, currency = currency, priceRub = null, fxDate = null,
+        seller = null, moq = minimum, retainUntil = null, isDetailed = true,
+    )
 }
 
-fun secureApiToken(address: String, token: String): String? {
-    val https = URI.create(apiAddress(address, false) ?: return null).scheme.equals("https", true)
-    return token.takeIf { https && it.length in 1..512 && it.all { char -> char in '!'..'~' } }
+private val taobaoItemId = Regex("(?:^|&)id=([0-9]{1,20})(?:&|$)")
+private val wholesaleOffer = Regex("/offer/([0-9]{1,20})\\.html/?")
+private val alibabaItem = Regex("/product-detail/(?:[^/]+_)?([0-9]{1,20})\\.html/?")
+
+fun marketplaceProductLink(address: String): MarketplaceProductLink? {
+    val trimmed = address.trim()
+    val uri = secureUri(trimmed) ?: return null
+    val market = Market.entries.firstOrNull { it.accepts(trimmed) } ?: return null
+    val path = uri.rawPath.orEmpty()
+    return when (market) {
+        Market.TAOBAO -> {
+            if (path !in setOf("/item.htm", "/detail.htm", "/awp/core/detail.htm")) return null
+            val id = taobaoItemId.find(uri.rawQuery.orEmpty())?.groupValues?.get(1) ?: return null
+            val host = uri.host.lowercase(Locale.ROOT)
+            val canonicalHost = if (host == "tmall.com" || host.endsWith(".tmall.com")) "detail.tmall.com" else "item.taobao.com"
+            MarketplaceProductLink(market, id, "https://$canonicalHost/item.htm?id=$id")
+        }
+        Market.ALI1688 -> {
+            val id = wholesaleOffer.matchEntire(path)?.groupValues?.get(1) ?: return null
+            MarketplaceProductLink(market, id, "https://detail.1688.com/offer/$id.html")
+        }
+        Market.ALIBABA -> {
+            val id = alibabaItem.matchEntire(path)?.groupValues?.get(1) ?: return null
+            MarketplaceProductLink(market, id, "https://www.alibaba.com${path.trimEnd('/')}")
+        }
+    }
 }
 
 data class Product(
@@ -96,34 +126,6 @@ data class Product(
     fun valid(): Boolean = !source.isNullOrBlank() && !url.isNullOrBlank() && market?.accepts(url) == true &&
         !id.isNullOrBlank() && !title.isNullOrBlank() && runCatching { OffsetDateTime.parse(observedAt) }.isSuccess
 }
-
-data class SourceStatus(val id: String, val status: String) {
-    val description: String get() = when (status) {
-        "available" -> "Подключён"
-        "configured" -> "Доступ ещё не проверен"
-        "not_configured" -> "Подключение не настроено"
-        "unsupported" -> "Операция недоступна"
-        "forbidden" -> "Площадка отклонила доступ"
-        "rate_limited" -> "Площадка ограничила запросы"
-        "unavailable" -> "Временно недоступен"
-        else -> "Статус неизвестен"
-    }
-}
-
-data class SearchResult(
-    val items: List<Product>,
-    val sources: List<SourceStatus>,
-    @SerializedName("next_cursor") val nextCursor: String?,
-)
-data class SourcesResult(val sources: List<SourceStatus>)
-
-data class TranslateRequest(
-    val text: String,
-    @SerializedName("source_lang") val source: String,
-    @SerializedName("target_lang") val target: String,
-)
-
-data class TranslatedText(val text: String, val engine: String)
 
 data class OcrBounds(val x: Int, val y: Int, val width: Int, val height: Int)
 data class OcrBlock(val text: String, val translation: String?, val box: OcrBounds?)

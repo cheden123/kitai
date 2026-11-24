@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,15 +42,25 @@ import java.io.ByteArrayInputStream
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun MarketplaceWebScreen(destination: WebDestination) {
+fun MarketplaceWebScreen(
+    destination: WebDestination,
+    onVisit: (MarketplaceProductLink, String) -> Unit,
+    onAddProduct: (MarketplaceProductLink, String) -> Unit,
+) {
     val context = LocalContext.current
     var currentAddress by rememberSaveable(destination.url) { mutableStateOf(destination.url) }
+    var pageTitle by remember(destination) { mutableStateOf("") }
     var loading by remember(destination) { mutableStateOf(true) }
     var error by remember(destination) { mutableStateOf<String?>(null) }
     var rendererGone by remember(destination) { mutableStateOf(false) }
     if (!destination.market.accepts(destination.url)) {
         InfoCard("Ссылка недоступна", "Откройте проверенную ссылку площадки.")
         return
+    }
+    val productLink = marketplaceProductLink(currentAddress)
+    val displayTitle = pageTitle.ifBlank { "Товар ${productLink?.id.orEmpty()}" }
+    LaunchedEffect(productLink, loading, error) {
+        if (productLink != null && !loading && error == null) onVisit(productLink, displayTitle)
     }
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -61,6 +72,9 @@ fun MarketplaceWebScreen(destination: WebDestination) {
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (productLink != null && !loading && error == null) {
+                TextButton(onClick = { onAddProduct(productLink, displayTitle) }) { Text("Добавить") }
+            }
             TextButton(onClick = {
                 if (destination.market.accepts(currentAddress)) {
                     try {
@@ -129,12 +143,27 @@ fun MarketplaceWebScreen(destination: WebDestination) {
                                     return
                                 }
                                 currentAddress = url
+                                pageTitle = ""
                                 loading = true
                                 error = null
                             }
 
                             override fun onPageFinished(view: WebView, url: String) {
-                                loading = false
+                                if (url == currentAddress) {
+                                    pageTitle = view.title.orEmpty().trim().take(200)
+                                    loading = false
+                                }
+                            }
+
+                            override fun onReceivedHttpError(
+                                view: WebView,
+                                request: WebResourceRequest,
+                                response: WebResourceResponse,
+                            ) {
+                                if (request.isForMainFrame) {
+                                    error = "Площадка не открыла страницу. Попробуйте в браузере."
+                                    loading = false
+                                }
                             }
 
                             override fun onReceivedError(

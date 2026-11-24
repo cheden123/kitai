@@ -13,8 +13,8 @@ android {
         applicationId = "ru.kitai.app"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     val releaseSigning = listOf(
@@ -45,6 +45,7 @@ android {
 kapt { correctErrorTypes = true }
 
 dependencies {
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")

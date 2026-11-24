@@ -128,6 +128,8 @@ private fun KitaiApp(model: KitaiViewModel, settings: Settings) {
     var tab by rememberSaveable { mutableStateOf(Destination.CATALOG) }
     var inSettings by rememberSaveable { mutableStateOf(false) }
     var web by rememberSaveable(stateSaver = webDestinationSaver) { mutableStateOf<WebDestination?>(null) }
+    var productAddress by rememberSaveable { mutableStateOf<String?>(null) }
+    var productTitle by rememberSaveable { mutableStateOf("") }
     val openOriginal: (Market, String) -> Unit = { market, address ->
         if (market.accepts(address)) web = WebDestination(market, address)
     }
@@ -205,22 +207,38 @@ private fun KitaiApp(model: KitaiViewModel, settings: Settings) {
             val activeWeb = web
             val activeDetail = detail
             when {
-                activeWeb != null -> MarketplaceWebScreen(activeWeb)
+                activeWeb != null -> MarketplaceWebScreen(
+                    destination = activeWeb,
+                    onVisit = model::recordMarketplaceVisit,
+                    onAddProduct = { link, title ->
+                        productTitle = title
+                        productAddress = link.url
+                    },
+                )
                 inSettings -> SettingsScreen(settings) {
-                    model.saveSettings(it)
-                    inSettings = false
+                    model.saveSettings(it) { inSettings = false }
                 }
                 activeDetail != null -> ProductDetailScreen(
                     activeDetail,
-                    saved.firstOrNull { it.product.key == activeDetail.product.key },
-                    onMark = { action, enabled -> model.mark(activeDetail.product, action, enabled) },
+                    saved.firstOrNull { it.product.key == activeDetail.key },
+                    onMark = { action, enabled -> model.mark(activeDetail, action, enabled) },
                     openOriginal = openOriginal,
                 )
                 else -> tabState.SaveableStateProvider(tab.name) {
                     when (tab) {
                         Destination.CATALOG -> {
                             val catalog by model.catalog.collectAsStateWithLifecycle()
-                            CatalogScreen(catalog, settings, model, openOriginal) { inSettings = true }
+                            CatalogScreen(
+                                catalog,
+                                settings,
+                                model,
+                                openOriginal,
+                                openSettings = { inSettings = true },
+                                addProduct = {
+                                    productTitle = ""
+                                    productAddress = ""
+                                },
+                            )
                         }
                         Destination.SAVED -> SavedScreen(saved, model)
                         Destination.COMPARE -> CompareScreen(saved, model)
@@ -228,6 +246,18 @@ private fun KitaiApp(model: KitaiViewModel, settings: Settings) {
                     }
                 }
             }
+        }
+        productAddress?.let { address ->
+            val existing = marketplaceProductLink(address)?.let { link ->
+                saved.firstOrNull { it.product.source == link.market.id && it.product.id == link.id }?.product
+            }
+            ManualProductDialog(
+                initialAddress = address,
+                initialTitle = productTitle,
+                existingProduct = existing,
+                onDismiss = { productAddress = null },
+                onSave = model::saveMarketplaceProduct,
+            )
         }
     }
 }

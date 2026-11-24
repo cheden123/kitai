@@ -26,16 +26,42 @@ class CatalogModelsTest {
     }
 
     @Test
-    fun apiAddressAndTokenStayWithinConfiguredTrustPolicy() {
-        assertEquals("https://kitai.example:8443/kitai", apiAddress(" https://kitai.example:8443/kitai/ ", false))
-        assertNull(apiAddress("https://token@kitai.example", true))
-        assertNull(apiAddress("https://kitai.example/?token=private", true))
-        assertNull(apiAddress("http://10.0.2.2:8000", false))
-        assertEquals("http://10.0.2.2:8000", apiAddress("http://10.0.2.2:8000", true))
-        assertNull(apiAddress("http://10.0.2.2.example.org", true))
-        assertNull(secureApiToken("http://10.0.2.2:8000", "private-token"))
-        assertNull(secureApiToken("https://kitai.example", "private\nheader"))
-        assertEquals("private-token", secureApiToken("https://kitai.example", "private-token"))
+    fun marketplaceSearchEscapesTextAsOneQueryParameter() {
+        assertEquals("https://s.taobao.com/search?q=%E7%81%AF+A%26B%23", Market.TAOBAO.searchUrl("灯 A&B#"))
+        assertTrue(Market.ALI1688.searchUrl("10 + 20").endsWith("keywords=10+%2B+20"))
+        assertTrue(Market.ALIBABA.searchUrl("лапа").startsWith("https://www.alibaba.com/trade/search?"))
+        assertEquals(Market.ALI1688.homepage, Market.ALI1688.searchUrl(" "))
+    }
+
+    @Test
+    fun productLinksNormalizeKnownDetailPagesAndRemoveTracking() {
+        assertEquals(
+            MarketplaceProductLink(Market.TAOBAO, "42", "https://item.taobao.com/item.htm?id=42"),
+            marketplaceProductLink("https://h5.m.taobao.com/awp/core/detail.htm?track=abc&id=42#details"),
+        )
+        assertEquals(
+            MarketplaceProductLink(Market.ALI1688, "43", "https://detail.1688.com/offer/43.html"),
+            marketplaceProductLink("https://m.1688.com/offer/43.html?tracking=abc"),
+        )
+        assertEquals(
+            MarketplaceProductLink(Market.ALIBABA, "44", "https://www.alibaba.com/product-detail/Desk-Lamp_44.html"),
+            marketplaceProductLink("https://russian.alibaba.com/product-detail/Desk-Lamp_44.html?src=abc"),
+        )
+        assertNull(marketplaceProductLink("https://item.taobao.com.evil.example/item.htm?id=42"))
+        assertNull(marketplaceProductLink("https://s.taobao.com/search?id=42"))
+        assertNull(marketplaceProductLink("https://item.taobao.com/item.htm?notid=42"))
+    }
+
+    @Test
+    fun openRouterValidatesKeysAndPreservesOcrBlockOrder() {
+        assertTrue(validOpenRouterKey("sk-or-v1-test-key"))
+        assertFalse(validOpenRouterKey("private-token"))
+        assertFalse(validOpenRouterKey("sk-or-key\nheader"))
+        assertFalse(validOpenRouterKey("sk-or-ключ"))
+        assertEquals(listOf("Лампа", "Стол"), parseTranslations("[\"Лампа\", \"Стол\"]", 2))
+        assertEquals(listOf("Лампа"), parseTranslations("```json\n[\"Лампа\"]\n```", 1))
+        assertThrows(IncompleteTranslation::class.java) { parseTranslations("[\"Лампа\"]", 2) }
+        assertThrows(IncompleteTranslation::class.java) { parseTranslations("[123]", 1) }
     }
 
     @Test
