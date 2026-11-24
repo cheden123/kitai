@@ -11,7 +11,7 @@ import java.util.Locale
 enum class Market(val id: String, val title: String, val homepage: String, private vararg val domains: String) {
     TAOBAO("taobao", "Taobao", "https://www.taobao.com/", "taobao.com", "tmall.com"),
     ALI1688("1688", "1688", "https://www.1688.com/", "1688.com"),
-    ALIBABA("alibaba", "Alibaba.com", "https://www.alibaba.com/", "alibaba.com");
+    ALIBABA("alibaba", "Alibaba.com", "https://russian.alibaba.com/", "alibaba.com");
 
     fun accepts(address: String): Boolean {
         val uri = secureUri(address) ?: return false

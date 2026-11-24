@@ -209,6 +209,12 @@ private fun KitaiApp(model: KitaiViewModel, settings: Settings) {
             when {
                 activeWeb != null -> MarketplaceWebScreen(
                     destination = activeWeb,
+                    canTranslate = settings.openRouterKey.isNotBlank(),
+                    openTranslationSettings = {
+                        web = null
+                        inSettings = true
+                    },
+                    translatePage = model::translateMarketplacePage,
                     onVisit = model::recordMarketplaceVisit,
                     onAddProduct = { link, title ->
                         productTitle = title

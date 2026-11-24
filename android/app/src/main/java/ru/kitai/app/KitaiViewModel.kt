@@ -190,6 +190,9 @@ class KitaiViewModel @Inject constructor(
         }
     }
 
+    internal suspend fun translateMarketplacePage(fragments: List<String>): List<String> =
+        openRouter.translateMarketplacePage(settings.value.openRouterKey, fragments)
+
     fun recognize(upload: UploadImage, direction: Direction) {
         val key = settings.value.openRouterKey
         launchTranslation {
@@ -231,7 +234,7 @@ class KitaiViewModel @Inject constructor(
     }
 }
 
-private fun translationFailure(error: Exception): String = when (error) {
+internal fun translationFailure(error: Exception): String = when (error) {
     is HttpException -> when (error.code()) {
         401, 403 -> "OpenRouter отклонил ключ. Проверьте его в настройках."
         402 -> "OpenRouter отклонил запрос из-за ограничений аккаунта."
@@ -239,6 +242,7 @@ private fun translationFailure(error: Exception): String = when (error) {
         429 -> "Достигнут лимит бесплатных запросов OpenRouter. Попробуйте позже."
         else -> "OpenRouter вернул ошибку (${error.code()})."
     }
+    is PageTranslationUnavailable -> "Не удалось перевести текст страницы. Попробуйте ещё раз."
     is IncompleteTranslation -> "Модель вернула неполный перевод. Попробуйте ещё раз."
     is IOException -> "Не удалось связаться с OpenRouter. Проверьте подключение к интернету."
     else -> "Не удалось обработать перевод OpenRouter."
