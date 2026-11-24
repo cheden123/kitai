@@ -16,3 +16,9 @@ docker compose -p kitai -f deploy/compose.yaml ps
 [Проекты Container Manager](https://kb.synology.com/en-global/DSM/help/ContainerManager/docker_project) · [Обратный прокси DSM](https://kb.synology.com/en-in/DSM/help/DSM/AdminCenter/system_login_portal_advanced)
 
 Для запуска собственного LibreTranslate в той же сети Compose добавьте `-f deploy/compose.translation.yaml` перед `up`. Сервис переводчика доступен контейнеру API по внутреннему адресу. Порт переводчика на NAS не публикуется. Первое включение загружает модели и может занять несколько минут. [Настройки LibreTranslate](https://github.com/LibreTranslate/LibreTranslate/blob/main/docker-compose.yml)
+
+Если первая загрузка прервалась и переводчик запускается с неполным списком направлений, пересоздайте его с `KITAI_LT_UPDATE_MODELS=true`. Эта переменная включает восстановление пакетов из официального индекса. Именованный том моделей сохраняется.
+
+```sh
+KITAI_LT_UPDATE_MODELS=true docker compose -p kitai -f deploy/compose.yaml -f deploy/compose.translation.yaml up -d --force-recreate libretranslate
+```

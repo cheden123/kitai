@@ -2,15 +2,13 @@ services:
   api:
     environment:
       KITAI_LIBRETRANSLATE_URL: http://libretranslate:5000
-    depends_on:
-      libretranslate:
-        condition: service_healthy
 
   libretranslate:
     image: libretranslate/libretranslate:v1.9.6
     restart: unless-stopped
     environment:
       LT_LOAD_ONLY: en,ru,zh
+      LT_UPDATE_MODELS: "${KITAI_LT_UPDATE_MODELS:-false}"
     healthcheck:
       test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
       interval: 15s

@@ -153,7 +153,7 @@ async def _translate(
     translator: Translator, text: str, source: str, target: str, max_length: int
 ) -> str | None:
     try:
-        async with asyncio.timeout(2):
+        async with asyncio.timeout(8):
             translated = (await translator(text, source, target)).strip()
     except (TimeoutError, HTTPException):
         return None

@@ -28,6 +28,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.s
 - [Архитектура и целевой HTTP-контракт](docs/architecture/architecture.md)
 - [Техническое задание, план и критерии выпуска](docs/architecture/implementation-plan.md)
 - [Развёртывание на Synology SA6400](docs/guides/synology.md)
+- [Результаты проверки перевода и OCR](docs/guides/engine-verification.md)
 - [Получение ключей Taobao, 1688 и Alibaba.com](docs/marketplaces/keys.md)
 - Отчёты площадок · [Taobao](docs/marketplaces/taobao.md) · [1688](docs/marketplaces/1688.md) · [Alibaba.com](docs/marketplaces/alibaba.md)
 - [Порядок работы агентов](AGENTS.md)
