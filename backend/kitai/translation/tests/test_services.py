@@ -43,3 +43,39 @@ def test_ocr_combines_words_and_bounds(monkeypatch):
         "height": 20,
         "blocks": [{"text": "hello world", "translation": None, "box": [2, 3, 15, 6]}],
     }
+
+
+def test_openrouter_translation_and_cache(monkeypatch):
+    import asyncio
+    import json
+
+    import httpx
+
+    from kitai.translation.router import translate_with_engine
+
+    monkeypatch.setenv("KITAI_OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("KITAI_OPENROUTER_MODEL", raising=False)
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        assert str(request.url) == "https://openrouter.ai/api/v1/chat/completions"
+        assert request.headers["Authorization"] == "Bearer test-key"
+        body = json.loads(request.content)
+        assert body["model"] == "openrouter/free"
+        assert body["messages"][-1] == {"role": "user", "content": "Тестовый рюкзак"}
+        return httpx.Response(200, json={"choices": [
+            {"finish_reason": "stop", "message": {"content": "测试背包"}}
+        ]})
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **options: client(
+        transport=httpx.MockTransport(respond), **options
+    ))
+
+    async def run():
+        for _ in range(2):
+            assert await translate_with_engine("Тестовый рюкзак", "ru", "zh") == ("测试背包", "openrouter")
+
+    asyncio.run(run())
+    assert len(requests) == 1

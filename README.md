@@ -25,6 +25,8 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.s
 
 ## Документация
 
+Для перевода через OpenRouter укажите `KITAI_OPENROUTER_API_KEY` в серверном файле `deploy/kitai.env` и пересоздайте контейнер API. При заданном ключе Kitai отправляет OpenRouter текст перевода, включая текст, распознанный локальным Tesseract. По умолчанию используется `openrouter/free`. Модель задаётся через `KITAI_OPENROUTER_MODEL`, а стоимость зависит от выбранной модели. При пустом ключе Kitai использует настроенный LibreTranslate. [OpenRouter](https://openrouter.ai/openrouter/free)
+
 - [Архитектура и целевой HTTP-контракт](docs/architecture/architecture.md)
 - [Техническое задание, план и критерии выпуска](docs/architecture/implementation-plan.md)
 - [Развёртывание на Synology SA6400](docs/guides/synology.md)
